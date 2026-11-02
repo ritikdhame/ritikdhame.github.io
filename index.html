@@ -63,8 +63,14 @@
         <label for="caption">Caption</label>
         <textarea id="caption" rows="3" maxlength="2200" placeholder="Write the caption for this post…"></textarea>
       </div>
+      <label for="eventDate">Event date & time (optional)</label>
+      <input type="text" id="eventDate" maxlength="40" placeholder="e.g. Sun, 10 Nov · 6 AM">
+      <label for="eventPlace">Event place (optional)</label>
+      <input type="text" id="eventPlace" maxlength="50" placeholder="e.g. Garbet Plateau, Matheran">
       <label for="name">Your name</label>
       <input type="text" id="name" maxlength="40" placeholder="So we know who posted it">
+      <label for="handle">Your Instagram handle — tag yourself (optional)</label>
+      <input type="text" id="handle" maxlength="31" placeholder="@yourhandle">
     </div>
     <div class="card" id="previewWrap">
       <canvas id="cv" width="1080" height="1920"></canvas>
@@ -117,7 +123,22 @@ $("photo").addEventListener("change", e => {
   i.onload = () => { img = i; $("previewWrap").style.display = "block"; draw(); $("postBtn").disabled = false; };
   i.src = url;
 });
-["headline", "subtext"].forEach(id => $(id).addEventListener("input", draw));
+["headline", "subtext", "handle", "eventDate", "eventPlace"].forEach(id => $(id).addEventListener("input", draw));
+
+function handleText() {
+  const h = $("handle").value.trim().replace(/^@+/, "");
+  return h ? "@" + h : "";
+}
+function drawTag(ctx, x, y) {
+  const t = handleText();
+  if (!t) return;
+  ctx.font = "46px Poppins, sans-serif";
+  const w = ctx.measureText(t).width + 56;
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.beginPath(); ctx.roundRect(x - w / 2, y - 52, w, 76, 38); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+  ctx.fillText(t, x, y);
+}
 
 function draw() {
   if (!img) return;
@@ -130,6 +151,7 @@ function draw() {
     const w = img.width * s, h = img.height * s;
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
     ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+    drawTag(ctx, W / 2, H - 70);
     return;
   }
   cv.width = 1080; cv.height = 1920;
@@ -150,7 +172,10 @@ function draw() {
   ctx.fillStyle = "#fff"; ctx.textAlign = "center";
   ctx.font = "64px Righteous, cursive";
   ctx.fillText("phirkidhar", W / 2, 130);
-  // headline + details at the bottom
+  // guide's tag + event line + headline + details at the bottom
+  drawTag(ctx, W / 2, H - 640);
+  const ev = [$("eventDate").value.trim(), $("eventPlace").value.trim()].filter(Boolean).join("  ·  ");
+  if (ev) { ctx.font = "500 50px Poppins, sans-serif"; ctx.fillStyle = "#ffe9a8"; wrap(ctx, ev, W / 2, H - 490, 920, 62, 2); ctx.fillStyle = "#fff"; }
   const head = $("headline").value.trim(), sub = $("subtext").value.trim();
   ctx.font = "600 72px Poppins, sans-serif";
   wrap(ctx, head, W / 2, H - 330, 920, 88, 2);
@@ -171,7 +196,7 @@ $("postBtn").onclick = async () => {
   const btn = $("postBtn"), msg = $("postMsg");
   btn.disabled = true; msg.className = "msg"; msg.textContent = "Posting…";
   const dataUrl = $("cv").toDataURL("image/jpeg", 0.92);
-  const payload = { type: mode, name: $("name").value.trim(), headline: $("headline").value.trim(), subtext: $("subtext").value.trim(), caption: $("caption").value.trim(), image: dataUrl, at: new Date().toISOString() };
+  const payload = { type: mode, name: $("name").value.trim(), handle: handleText(), eventDate: $("eventDate").value.trim(), eventPlace: $("eventPlace").value.trim(), headline: $("headline").value.trim(), subtext: $("subtext").value.trim(), caption: $("caption").value.trim(), image: dataUrl, at: new Date().toISOString() };
   try {
     if (!SUBMIT_ENDPOINT) throw new Error("not-live");
     const r = await fetch(SUBMIT_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
