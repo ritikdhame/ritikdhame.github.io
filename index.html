@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Phir Kidhar — Post a Story</title>
+<title>Phir Kidhar — Post a Story or Add a Post</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -22,7 +22,7 @@
   button:disabled { opacity: .45; cursor: default; }
   button.secondary { background: #26362c; }
   #previewWrap { display: none; text-align: center; }
-  canvas { width: 270px; height: 480px; border-radius: 14px; border: 1px solid #33463a; background: #000; }
+  canvas { width: 270px; height: auto; border-radius: 14px; border: 1px solid #33463a; background: #000; }
   .msg { font-size: 14px; text-align: center; margin-top: 14px; min-height: 20px; }
   .err { color: #ff9a8a; } .ok { color: #7fe0a3; }
   .hint { font-size: 12px; opacity: .65; margin-top: 6px; }
@@ -32,7 +32,7 @@
 <body>
 <header>
   <h1>phirkidhar</h1>
-  <p>Post a story on @phirkidhar</p>
+  <p>Post a story or add a post on @phirkidhar</p>
 </header>
 <main>
   <!-- Step 1: invite code -->
@@ -46,12 +46,23 @@
   <!-- Step 2: make the story -->
   <div id="app">
     <div class="card">
+      <label>What do you want to add?</label>
+      <div style="display:flex;gap:10px">
+        <button type="button" id="modeStory" style="margin-top:0">Story</button>
+        <button type="button" id="modePost" class="secondary" style="margin-top:0">Post</button>
+      </div>
       <label for="photo">Photo (vertical works best)</label>
       <input type="file" id="photo" accept="image/*">
-      <label for="headline">Headline</label>
-      <input type="text" id="headline" maxlength="60" placeholder="e.g. Sunday trek to Garbet Plateau">
-      <label for="subtext">Details (optional)</label>
-      <textarea id="subtext" rows="2" maxlength="120" placeholder="e.g. 6 AM start · Matheran · DM to join"></textarea>
+      <div id="storyFields">
+        <label for="headline">Headline</label>
+        <input type="text" id="headline" maxlength="60" placeholder="e.g. Sunday trek to Garbet Plateau">
+        <label for="subtext">Details (optional)</label>
+        <textarea id="subtext" rows="2" maxlength="120" placeholder="e.g. 6 AM start · Matheran · DM to join"></textarea>
+      </div>
+      <div id="postFields" style="display:none">
+        <label for="caption">Caption</label>
+        <textarea id="caption" rows="3" maxlength="2200" placeholder="Write the caption for this post…"></textarea>
+      </div>
       <label for="name">Your name</label>
       <input type="text" id="name" maxlength="40" placeholder="So we know who posted it">
     </div>
@@ -59,7 +70,7 @@
       <canvas id="cv" width="1080" height="1920"></canvas>
       <button id="postBtn" disabled>Post story</button>
       <div class="msg" id="postMsg"></div>
-      <p class="hint">Posting goes straight to the @phirkidhar story. No approval needed.</p>
+      <p class="hint" id="modeHint">Posting goes straight to the @phirkidhar story. No approval needed.</p>
     </div>
   </div>
 </main>
@@ -72,6 +83,22 @@ const SUBMIT_ENDPOINT = ""; // where submissions are sent to be auto-posted; set
 
 const $ = id => document.getElementById(id);
 let img = null;
+let mode = "story"; // "story" | "post"
+
+function setMode(m) {
+  mode = m;
+  $("modeStory").className = m === "story" ? "" : "secondary";
+  $("modePost").className = m === "post" ? "" : "secondary";
+  $("storyFields").style.display = m === "story" ? "block" : "none";
+  $("postFields").style.display = m === "post" ? "block" : "none";
+  $("postBtn").textContent = m === "story" ? "Post story" : "Add post";
+  $("modeHint").textContent = m === "story"
+    ? "Posting goes straight to the @phirkidhar story. No approval needed."
+    : "The post goes straight to the @phirkidhar feed with your caption. No approval needed.";
+  draw();
+}
+$("modeStory").onclick = () => setMode("story");
+$("modePost").onclick = () => setMode("post");
 
 $("unlockBtn").onclick = () => {
   if ($("code").value.trim().toUpperCase() === INVITE_CODE) {
@@ -95,6 +122,17 @@ $("photo").addEventListener("change", e => {
 function draw() {
   if (!img) return;
   const cv = $("cv"), ctx = cv.getContext("2d");
+  if (mode === "post") {
+    // Feed post: 1080x1350 (4:5), photo only — the caption goes with the post, not on the image
+    const W = 1080, H = 1350;
+    cv.width = W; cv.height = H;
+    const s = Math.max(W / img.width, H / img.height);
+    const w = img.width * s, h = img.height * s;
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+    return;
+  }
+  cv.width = 1080; cv.height = 1920;
   const W = 1080, H = 1920;
   // cover-crop the photo into 9:16
   const s = Math.max(W / img.width, H / img.height);
@@ -133,18 +171,18 @@ $("postBtn").onclick = async () => {
   const btn = $("postBtn"), msg = $("postMsg");
   btn.disabled = true; msg.className = "msg"; msg.textContent = "Posting…";
   const dataUrl = $("cv").toDataURL("image/jpeg", 0.92);
-  const payload = { name: $("name").value.trim(), headline: $("headline").value.trim(), subtext: $("subtext").value.trim(), image: dataUrl, at: new Date().toISOString() };
+  const payload = { type: mode, name: $("name").value.trim(), headline: $("headline").value.trim(), subtext: $("subtext").value.trim(), caption: $("caption").value.trim(), image: dataUrl, at: new Date().toISOString() };
   try {
     if (!SUBMIT_ENDPOINT) throw new Error("not-live");
     const r = await fetch(SUBMIT_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!r.ok) throw new Error("send-failed");
-    msg.className = "msg ok"; msg.textContent = "Posted to @phirkidhar ✓";
+    msg.className = "msg ok"; msg.textContent = mode === "story" ? "Posted to @phirkidhar ✓" : "Post added to @phirkidhar ✓";
   } catch (e) {
     // fallback: hand them the finished story image
     const a = document.createElement("a");
-    a.href = dataUrl; a.download = "phirkidhar-story.jpg"; a.click();
+    a.href = dataUrl; a.download = mode === "story" ? "phirkidhar-story.jpg" : "phirkidhar-post.jpg"; a.click();
     msg.className = "msg err";
-    msg.textContent = e.message === "not-live" ? "Saved your story image — direct posting isn't switched on yet." : "Couldn't post just now — your story image was saved instead.";
+    msg.textContent = e.message === "not-live" ? "Saved your image — direct posting isn't switched on yet." : "Couldn't post just now — your image was saved instead.";
     btn.disabled = false;
   }
 };
