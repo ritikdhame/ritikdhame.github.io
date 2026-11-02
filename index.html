@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phir Kidhar — Post a Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Righteous&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Poppins', sans-serif; background: #0e1512; color: #f2f5f0; min-height: 100vh; }
+  header { padding: 20px; text-align: center; background: #000; }
+  header h1 { font-family: 'Righteous', cursive; font-weight: 400; font-size: 28px; letter-spacing: 1px; }
+  header p { font-size: 13px; opacity: .7; margin-top: 4px; }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; }
+  .card { background: #16211b; border: 1px solid #26362c; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin: 14px 0 6px; }
+  label:first-child { margin-top: 0; }
+  input[type=text], textarea { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #33463a; background: #0e1512; color: #fff; font-family: inherit; font-size: 15px; }
+  input[type=file] { width: 100%; padding: 10px 0; color: #cfd8d0; }
+  button { width: 100%; padding: 14px; border: none; border-radius: 12px; background: #2e9e5b; color: #fff; font-family: inherit; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 18px; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.secondary { background: #26362c; }
+  #previewWrap { display: none; text-align: center; }
+  canvas { width: 270px; height: 480px; border-radius: 14px; border: 1px solid #33463a; background: #000; }
+  .msg { font-size: 14px; text-align: center; margin-top: 14px; min-height: 20px; }
+  .err { color: #ff9a8a; } .ok { color: #7fe0a3; }
+  .hint { font-size: 12px; opacity: .65; margin-top: 6px; }
+  #app { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>phirkidhar</h1>
+  <p>Post a story on @phirkidhar</p>
+</header>
+<main>
+  <!-- Step 1: invite code -->
+  <div class="card" id="gate">
+    <label for="code">Invite code</label>
+    <input type="text" id="code" placeholder="PHIR-____-____" autocomplete="off" style="text-transform:uppercase">
+    <button id="unlockBtn">Continue</button>
+    <div class="msg err" id="gateMsg"></div>
+  </div>
+
+  <!-- Step 2: make the story -->
+  <div id="app">
+    <div class="card">
+      <label for="photo">Photo (vertical works best)</label>
+      <input type="file" id="photo" accept="image/*">
+      <label for="headline">Headline</label>
+      <input type="text" id="headline" maxlength="60" placeholder="e.g. Sunday trek to Garbet Plateau">
+      <label for="subtext">Details (optional)</label>
+      <textarea id="subtext" rows="2" maxlength="120" placeholder="e.g. 6 AM start · Matheran · DM to join"></textarea>
+      <label for="name">Your name</label>
+      <input type="text" id="name" maxlength="40" placeholder="So we know who posted it">
+    </div>
+    <div class="card" id="previewWrap">
+      <canvas id="cv" width="1080" height="1920"></canvas>
+      <button id="postBtn" disabled>Post story</button>
+      <div class="msg" id="postMsg"></div>
+      <p class="hint">Posting goes straight to the @phirkidhar story. No approval needed.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+// ===== Config (set once, by Ritik) =====
+const INVITE_CODE = "PHIR-BB5U-NK27";
+const SUBMIT_ENDPOINT = ""; // where submissions are sent to be auto-posted; set before going live
+// =======================================
+
+const $ = id => document.getElementById(id);
+let img = null;
+
+$("unlockBtn").onclick = () => {
+  if ($("code").value.trim().toUpperCase() === INVITE_CODE) {
+    $("gate").style.display = "none";
+    $("app").style.display = "block";
+  } else {
+    $("gateMsg").textContent = "That code doesn't match. Check with Ritik and try again.";
+  }
+};
+
+$("photo").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const i = new Image();
+  i.onload = () => { img = i; $("previewWrap").style.display = "block"; draw(); $("postBtn").disabled = false; };
+  i.src = url;
+});
+["headline", "subtext"].forEach(id => $(id).addEventListener("input", draw));
+
+function draw() {
+  if (!img) return;
+  const cv = $("cv"), ctx = cv.getContext("2d");
+  const W = 1080, H = 1920;
+  // cover-crop the photo into 9:16
+  const s = Math.max(W / img.width, H / img.height);
+  const w = img.width * s, h = img.height * s;
+  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+  // soft shade at top and bottom
+  let g = ctx.createLinearGradient(0, 0, 0, 500);
+  g.addColorStop(0, "rgba(0,0,0,.55)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, 500);
+  g = ctx.createLinearGradient(0, H - 700, 0, H);
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.65)");
+  ctx.fillStyle = g; ctx.fillRect(0, H - 700, W, 700);
+  // brand
+  ctx.fillStyle = "#fff"; ctx.textAlign = "center";
+  ctx.font = "64px Righteous, cursive";
+  ctx.fillText("phirkidhar", W / 2, 130);
+  // headline + details at the bottom
+  const head = $("headline").value.trim(), sub = $("subtext").value.trim();
+  ctx.font = "600 72px Poppins, sans-serif";
+  wrap(ctx, head, W / 2, H - 330, 920, 88, 2);
+  if (sub) { ctx.font = "44px Poppins, sans-serif"; wrap(ctx, sub, W / 2, H - 130, 920, 58, 2); }
+}
+function wrap(ctx, text, x, y, maxW, lh, maxLines) {
+  if (!text) return;
+  const words = text.split(/\s+/); let line = "", lines = [];
+  for (const wd of words) {
+    const t = line ? line + " " + wd : wd;
+    if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = wd; } else line = t;
+  }
+  if (line) lines.push(line);
+  lines.slice(0, maxLines).forEach((l, i) => ctx.fillText(l, x, y + i * lh));
+}
+
+$("postBtn").onclick = async () => {
+  const btn = $("postBtn"), msg = $("postMsg");
+  btn.disabled = true; msg.className = "msg"; msg.textContent = "Posting…";
+  const dataUrl = $("cv").toDataURL("image/jpeg", 0.92);
+  const payload = { name: $("name").value.trim(), headline: $("headline").value.trim(), subtext: $("subtext").value.trim(), image: dataUrl, at: new Date().toISOString() };
+  try {
+    if (!SUBMIT_ENDPOINT) throw new Error("not-live");
+    const r = await fetch(SUBMIT_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error("send-failed");
+    msg.className = "msg ok"; msg.textContent = "Posted to @phirkidhar ✓";
+  } catch (e) {
+    // fallback: hand them the finished story image
+    const a = document.createElement("a");
+    a.href = dataUrl; a.download = "phirkidhar-story.jpg"; a.click();
+    msg.className = "msg err";
+    msg.textContent = e.message === "not-live" ? "Saved your story image — direct posting isn't switched on yet." : "Couldn't post just now — your story image was saved instead.";
+    btn.disabled = false;
+  }
+};
+</script>
+</body>
+</html>
